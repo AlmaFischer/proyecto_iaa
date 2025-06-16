@@ -1,0 +1,12 @@
+services:
+  proyecto_iaa:
+    build: .
+    image: proyecto_iaa:latest
+    container_name: proyecto_iaa
+    environment:
+      - DISPLAY=${DISPLAY}
+    volumes:
+      - ./data:/app/data
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    stdin_open: true
+    tty: true

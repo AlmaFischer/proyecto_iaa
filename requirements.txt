@@ -1,0 +1,9 @@
+pandas
+tqdm
+pysentimiento
+joblib
+pytesseract
+pdf2image
+Pillow
+scikit-learn
+xgboost
