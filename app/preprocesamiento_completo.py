@@ -2,12 +2,10 @@ import pandas as pd
 import re
 import unicodedata
 from tqdm import tqdm
-from pysentimiento import create_analyzer
 import os
 
 # Inicializar tqdm y analizador de sentimiento
 tqdm.pandas()
-analyzer = create_analyzer(task="sentiment", lang="es")
 
 # -------------------------------
 # CARGA DE DATOS (desde CSV local)
@@ -34,13 +32,6 @@ def get_num_word_text(text):
     except:
         largo = 0
     return largo
-
-def get_sentiment_text(text):
-    try:
-        sentiment = analyzer.predict(text).output
-    except:
-        sentiment = "NEU"
-    return sentiment
 
 def verify_is_liderazgo(text):
     keywords = [
@@ -98,7 +89,6 @@ def delete_unnecesary_rows(df):
 # -------------------------------
 
 df["num_word_cv"] = df["Curriculum"].progress_apply(get_num_word_text)
-df["sentiment_cv"] = df["Curriculum"].progress_apply(get_sentiment_text)
 df["liderazgo_cv"] = df["Curriculum"].progress_apply(verify_is_liderazgo)
 df["deporte_cv"] = df["Curriculum"].progress_apply(verify_is_deporte)
 df["talento_cv"] = df["Curriculum"].progress_apply(verify_is_talento)
@@ -109,22 +99,9 @@ df = delete_unnecesary_rows(df)
 # TRANSFORMACIONES
 # -------------------------------
 
-df["sentiment_cv"] = df["sentiment_cv"].replace("NEG", "NEU")
-df["sentiment_cv"] = df["sentiment_cv"].replace("NEU", "NOPOS")
-df["sentiment_cv_POS"] = df["sentiment_cv"].apply(lambda x: True if x == "POS" else False)
-
 # Generar variables adicionales
-df["Nota Humanista"] = (df["Nota Lenguaje"] + df["Nota Historia"]) / 2
-df["Nota Cientifico"] = (df["Nota Matematicas"] + df["Nota Ciencia"]) / 2
-
-# Normalización
-variables_to_scale = [
-    "Nota Matematicas", "Nota Lenguaje", "Nota Ingles", "Nota Ciencia",
-    "Nota Historia", "Nota Artes", "Nem", "Nota Cientifico", "Nota Humanista"
-]
-
-for var in variables_to_scale:
-    df[var] = (df[var] - 1.0) / 6.0
+df["Nota Humanista"] = ((df["Nota Lenguaje"] + df["Nota Historia"]) / 2).round(1)
+df["Nota Cientifico"] = ((df["Nota Matematicas"] + df["Nota Ciencia"]) / 2).round(1)
 
 # Eliminar columnas redundantes
 df.drop(columns=["Nota Matematicas", "Nota Lenguaje", "Nota Ciencia", "Nota Historia"], inplace=True)
@@ -132,7 +109,7 @@ df.drop(columns=["Nota Matematicas", "Nota Lenguaje", "Nota Ciencia", "Nota Hist
 # Reordenar columnas
 nuevo_orden = [
     "Nota Cientifico", "Nota Humanista", "Nota Ingles", "Nota Artes", "Nem",
-    "liderazgo_cv", "deporte_cv", "talento_cv", "sentiment_cv_POS"
+    "liderazgo_cv", "deporte_cv", "talento_cv"
 ]
 
 df = df[nuevo_orden]
