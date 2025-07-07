@@ -2,8 +2,7 @@
 ##  Instalación y Configuración
 
 El sistema deberia instalar todo automaticamente al usar docker compose, puede tardar dependiendo del sistema y de la conexion a internet
-
-2. **Ejecutar con Docker Compose:**
+**Ejecutar con Docker Compose:**
 ```bash
 docker-compose up --build
 ```
