@@ -219,7 +219,10 @@ class App(tk.Tk):
             ]
         )
         if path:
-            self.notas_path.set(f"[OK] {os.path.basename(path)}")
+            # Guardar la ruta completa, no solo el nombre
+            self.notas_path.set(f"[OK] {path}")
+            # Mostrar solo el nombre en la interfaz pero guardar la ruta completa
+            self.update_file_display("notas", os.path.basename(path))
             self.verificar_archivos()
 
     def cargar_cv(self):
@@ -235,8 +238,17 @@ class App(tk.Tk):
             ]
         )
         if path:
-            self.cv_path.set(f"[OK] {os.path.basename(path)}")
+            # Guardar la ruta completa, no solo el nombre
+            self.cv_path.set(f"[OK] {path}")
+            # Mostrar solo el nombre en la interfaz pero guardar la ruta completa
+            self.update_file_display("cv", os.path.basename(path))
             self.verificar_archivos()
+
+    def update_file_display(self, tipo, nombre_archivo):
+        """Actualiza la visualización del archivo en la interfaz"""
+        # Esta función se puede usar para mostrar solo el nombre en la UI
+        # mientras mantenemos la ruta completa en las variables
+        pass
 
     def verificar_archivos(self):
         """Habilita el botón de procesar si ambos archivos están cargados"""
@@ -274,15 +286,19 @@ class App(tk.Tk):
     def flujo_completo(self):
         """Procesa los archivos y obtiene las predicciones"""
         try:
-            # Obtener rutas reales de archivos (eliminar el marcador)
+            # Obtener rutas completas de archivos (eliminar el marcador [OK])
             notas_path = self.notas_path.get().replace("[OK] ", "")
             cv_path = self.cv_path.get().replace("[OK] ", "")
             
-            # Buscar archivos en directorio actual si no son rutas absolutas
-            if not os.path.isabs(notas_path):
-                notas_path = self.buscar_archivo_similar(notas_path, "notas")
-            if not os.path.isabs(cv_path):
-                cv_path = self.buscar_archivo_similar(cv_path, "cv")
+            print(f"Procesando archivos seleccionados:")
+            print(f"  - Notas: {notas_path}")
+            print(f"  - CV: {cv_path}")
+            
+            # Verificar que los archivos existen
+            if not os.path.exists(notas_path):
+                raise FileNotFoundError(f"Archivo de notas no encontrado: {notas_path}")
+            if not os.path.exists(cv_path):
+                raise FileNotFoundError(f"Archivo de CV no encontrado: {cv_path}")
             
             # 1. Procesamiento con Proyecto4.py y capturar datos
             df = Proyecto4.process_two_files_df(notas_path, cv_path)
@@ -325,8 +341,8 @@ class App(tk.Tk):
                             'talento_cv': fila.get('talento_cv', 0)
                         }
                     })
-            except Exception as e:
-                print(f"Error al leer datos procesados: {e}")
+            except Exception as read_error:
+                print(f"Error al leer datos procesados: {read_error}")
             
             # 3. Obtener predicciones de todos los modelos
             predicciones = self.obtener_todas_las_predicciones()
@@ -334,32 +350,40 @@ class App(tk.Tk):
             # 4. Mostrar resultados con datos extraídos
             self.after(0, lambda: self.mostrar_resultados_completos(predicciones))
             
-        except Exception as e:
-            self.after(0, lambda: self.mostrar_error(f"Error en el análisis: {str(e)}"))
+        except Exception as main_error:
+            error_msg = str(main_error)
+            # Mejorar mensajes de error para el usuario
+            if "unable to get page count" in error_msg or "syntax warning may not be a pdf file" in error_msg:
+                user_error = "El archivo PDF parece estar dañado o corrupto. Por favor:\n\n• Verifica que el archivo se abra correctamente en un visor de PDF\n• Intenta guardar el PDF nuevamente desde su aplicación original\n• Si el problema persiste, convierte el PDF a imagen (JPG/PNG) y úsalo en su lugar"
+            elif "Couldnt find trailer dictionary" in error_msg or "Couldnt read xref table" in error_msg:
+                user_error = "El archivo PDF tiene problemas en su estructura interna. Soluciones:\n\n• Abre el PDF en un editor (como Adobe Acrobat) y guárdalo nuevamente\n• Convierte el PDF a imagen (JPG/PNG) y usa la imagen\n• Verifica que el archivo no esté protegido con contraseña"
+            elif "No se pudo extraer texto" in error_msg:
+                user_error = "No se pudo extraer texto del documento. Posibles causas:\n\n• El archivo está escaneado como imagen sin texto\n• El archivo está protegido o encriptado\n• La calidad del escaneo es muy baja\n\nIntenta con un archivo de mejor calidad o convierte a imagen."
+            elif "FileNotFoundError" in error_msg:
+                user_error = "No se encontró el archivo seleccionado. Verifica que:\n\n• El archivo aún existe en la ubicación original\n• Tienes permisos para acceder al archivo\n• El nombre del archivo no contiene caracteres especiales"
+            else:
+                user_error = f"Error en el análisis:\n\n{error_msg}\n\nIntenta con archivos PDF de mejor calidad o convierte los documentos a imágenes (JPG/PNG)."
+            
+            self.after(0, lambda msg=user_error: self.mostrar_error(msg))
         finally:
             self.after(0, self.finalizar_proceso)
 
-    def buscar_archivo_similar(self, filename, tipo):
-        """Busca archivos similares en el directorio files/"""
-        files_dir = "files"
-        if os.path.exists(files_dir):
-            for file in os.listdir(files_dir):
-                if tipo.lower() in file.lower() or filename.lower() in file.lower():
-                    return os.path.join(files_dir, file)
-        return filename
+    # def buscar_archivo_similar(self, filename, tipo):
+    #     """Busca archivos similares en el directorio files/ - DESACTIVADA"""
+    #     files_dir = "files"
+    #     if os.path.exists(files_dir):
+    #         for file in os.listdir(files_dir):
+    #             if tipo.lower() in file.lower() or filename.lower() in file.lower():
+    #                 return os.path.join(files_dir, file)
+    #     return filename
 
     def obtener_todas_las_predicciones(self):
         """Obtiene predicciones de todos los modelos disponibles"""
         CLASES = [
-            'Administración de Servicios', 'Bachillerato de Derecho', 'Bachillerato de Ingeniería Civil',
-            'Bachillerato de Ingeniería Comercial', 'Bachillerato de Medicina', 'Bachillerato de Psicología',
-            'Comunicación Audiovisual', 'Derecho', 'Enfermería', 'Ingeniería Civil', 'Ingeniería Comercial',
-            'International Business', 'Kinesiología', 'Medicina', 'Nutrición', 'Obstetricia y Puericultura',
-            'Odontología', 'Periodismo', 'Psicología', 'Publicidad', 'Terapia Ocupacional'
+            "Ingeniería Comercial", "Ingeniería Civil", "Derecho", "Psicología", "International Business"
         ]
         
         modelos = {
-            'XGBoost': 'model_xgboost.joblib',
             'Random Forest': 'model_random_forest.joblib',
             'Red Neuronal': 'model_red_neuronal.joblib',
             'SVM': 'model_SVM.joblib'
@@ -387,10 +411,6 @@ class App(tk.Tk):
             columnas_esperadas = ['Nota Cientifico', 'Nota Humanista', 'Nota Ingles', 'Nota Artes', 'Nem', 
                                 'liderazgo_cv', 'deporte_cv', 'talento_cv']
             
-            # Agregar columna sentiment_cv_POS si no existe (para XGBoost)
-            if 'sentiment_cv_POS' not in df.columns:
-                df['sentiment_cv_POS'] = 0.5  # Valor neutro por defecto
-            
             print(f"Columnas en el DataFrame: {list(df.columns)}")
             print(f"Forma del DataFrame: {df.shape}")
             
@@ -403,13 +423,8 @@ class App(tk.Tk):
                     try:
                         model = joblib.load(model_path)
                         
-                        # Preparar datos según el modelo
-                        if nombre_modelo == 'XGBoost':
-                            # XGBoost necesita todas las columnas incluyendo sentiment_cv_POS
-                            X = df[columnas_esperadas + ['sentiment_cv_POS']]
-                        else:
-                            # Otros modelos solo necesitan las columnas básicas
-                            X = df[columnas_esperadas]
+                        # Preparar datos con las columnas básicas
+                        X = df[columnas_esperadas]
                         
                         # Asegurar que no hay NaN
                         X = X.fillna(0)
@@ -677,8 +692,7 @@ PROCESAMIENTO INTELIGENTE:
 • Creamos variables científicas (Matemáticas + Ciencias) y humanistas (Lenguaje + Historia)
 • Analizamos tu perfil integral combinando notas académicas y experiencias personales
 
-4 MODELOS DE INTELIGENCIA ARTIFICIAL:
-• XGBoost: Modelo de gradient boosting de alta precisión
+3 MODELOS DE INTELIGENCIA ARTIFICIAL:
 • Random Forest: Bosque aleatorio robusto para patrones complejos
 • Red Neuronal: Deep learning para detectar relaciones no lineales
 • SVM: Support Vector Machine para clasificación optimizada
@@ -686,7 +700,7 @@ PROCESAMIENTO INTELIGENTE:
 SISTEMA DE CONSENSO:
 • Cada modelo genera sus top 3 recomendaciones con probabilidades
 • Combinamos resultados dando más peso a las primeras posiciones
-• El resultado final es el consenso de los 4 expertos virtuales
+• El resultado final es el consenso de los 3 expertos virtuales
         """
         
         tk.Label(info_frame, 
@@ -703,7 +717,6 @@ SISTEMA DE CONSENSO:
         
         # Colores para cada modelo
         colores_modelo = {
-            'XGBoost': '#dc2626',
             'Random Forest': '#059669', 
             'Red Neuronal': '#7c3aed',
             'SVM': '#ea580c'
@@ -711,7 +724,6 @@ SISTEMA DE CONSENSO:
         
         # Descripciones de los modelos
         descripciones = {
-            'XGBoost': 'Modelo de gradient boosting extremo. Excelente para patrones complejos y muy preciso.',
             'Random Forest': 'Bosque de árboles de decisión. Robusto y estable, reduce el overfitting.',
             'Red Neuronal': 'Deep learning con múltiples capas. Detecta patrones no lineales complejos.',
             'SVM': 'Support Vector Machine. Optimiza fronteras de decisión para máxima separación.'
@@ -900,8 +912,68 @@ La carrera con mayor puntuación total es tu recomendación #1.
         self.after(100, dibujar_barra)
 
     def mostrar_error(self, mensaje):
-        """Muestra un mensaje de error elegante"""
-        messagebox.showerror("Error", mensaje)
+        """Muestra un mensaje de error elegante con mejor formato"""
+        # Crear una ventana de error personalizada para mensajes largos
+        error_window = tk.Toplevel(self)
+        error_window.title("Error en el Procesamiento")
+        error_window.geometry("600x400")
+        error_window.configure(bg="#fff5f5")
+        error_window.resizable(True, True)
+        
+        # Centrar la ventana
+        error_window.transient(self)
+        error_window.grab_set()
+        
+        # Frame principal
+        main_frame = tk.Frame(error_window, bg="#fff5f5", padx=20, pady=20)
+        main_frame.pack(fill="both", expand=True)
+        
+        # Título del error
+        title_label = tk.Label(main_frame, 
+                              text="⚠️ Error en el Procesamiento", 
+                              font=('Arial', 16, 'bold'),
+                              fg="#dc2626", 
+                              bg="#fff5f5")
+        title_label.pack(pady=(0, 15))
+        
+        # Mensaje del error con scroll
+        text_frame = tk.Frame(main_frame, bg="#fff5f5")
+        text_frame.pack(fill="both", expand=True, pady=(0, 15))
+        
+        text_widget = tk.Text(text_frame, 
+                             wrap=tk.WORD,
+                             font=('Arial', 11),
+                             fg="#374151",
+                             bg="#ffffff",
+                             relief="solid",
+                             bd=1,
+                             padx=15,
+                             pady=15)
+        
+        scrollbar = tk.Scrollbar(text_frame, orient="vertical", command=text_widget.yview)
+        text_widget.configure(yscrollcommand=scrollbar.set)
+        
+        text_widget.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Insertar el mensaje
+        text_widget.insert("1.0", mensaje)
+        text_widget.config(state="disabled")
+        
+        # Botón para cerrar
+        close_button = tk.Button(main_frame, 
+                                text="Entendido", 
+                                font=('Arial', 12, 'bold'),
+                                bg="#dc2626",
+                                fg="white",
+                                relief="flat",
+                                padx=30,
+                                pady=10,
+                                command=error_window.destroy)
+        close_button.pack()
+        
+        # Enfocar la ventana
+        error_window.focus_set()
 
     def finalizar_proceso(self):
         """Limpia el estado de carga y habilita controles"""
